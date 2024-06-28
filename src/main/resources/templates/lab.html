@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Juego de la memoria</title>
+    <link rel="stylesheet" href="/css/bootstrap.css">
+    <script src="/js/bootstrap.js"></script>
+    <style>
+        .bloque{
+            width: 30px;
+            height: 30px;
+            margin: 3px;
+            background: skyblue;
+        }
+    </style>
+</head>
+<body style="padding: 20px">
+<h1>Juego de la memoria</h1>
+<br>
+<div>
+    <h3>Total de imágenes seleccionadas <span id="totalImagenes"></span></h3>
+    <br>
+    <a class="btn btn-success" style="width: auto" onclick="clicAgregarImagen()">Agregar imágenes</a>
+    <input onchange="subirImagen(event)" id="inputAgregarImagen" type="file" accept="image/png" style="display: none">
+</div>
+<div style="margin-top:20px;width: 100%">
+    <div id="contenedorImagenes" class="row" style="width: 100%;display: flex">
+        <div th:each="imagen:${listaImagenesPorJuego}" th:id="|contenedorImagen${imagen.getImagene().id}|" style="width: 33%;height: 300px">
+            <div th:onclick="|borrarImagen(${imagen.imagene.id})|" style="z-index: 10000;position: relative;left: 95%;top: 7%">X</div>
+            <img style="width: 100%;height: 100%;position: relative" th:src="|/mostrarImagen?idImagen=${imagen.getImagene().id}|" alt="">
+        </div>
+    </div>
+</div>
+<div style="margin: 10px;display: none;" id="botonIniciarJuego">
+    <a class="btn btn-success" onchange="iniciarJuego()" style="width: auto">Iniciar juego</a>
+</div>
+<div id="contenedorBloques">
+    <div class="row">
+        <div class="bloque"></div>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script th:inline="javascript">
+    let distribucionJuego=null;
+    const idJuego=/*[[${idJuego}]]*/;
+    let listaImagenes= [
+        /*[# th:each="imagen:${listaImagenesPorJuego}"]*/
+        {
+            idImagen:/*[[${imagen.imagene.id}]]*/,
+        /*[# th:if="${imagen.posicion1Imagen!=null}"]*/
+            posicion1:/*[[${imagen.posicion1Imagen}]]*/;
+        /*[/]*/
+            /*[# th:if="${imagen.posicion1Imagen==null}"]*/
+            posicion1:null,
+            /*[/]*/
+
+            /*[# th:if="${imagen.posicion2Imagen!=null}"]*/
+            posicion2:/*[[${imagen.posicion2Imagen}]]*/;
+            /*[/]*/
+            /*[# th:if="${imagen.posicion2Imagen==null}"]*/
+            posicion2:null,
+            /*[/]*/
+        },
+        /*[/]*/
+
+    ];
+    let distribucionFinal=null;
+
+
+    function borrarImagen(idImagen){
+        $.ajax({
+            url: '/borrarFoto',
+            type: 'POST',
+            data:{
+                idImagen:idImagen,
+            },
+            success: function () {
+                $("#contenedorImagen"+idImagen).remove();
+                for(let i=0;i<listaImagenes.length;i++){
+                    if(listaImagenes[i].idImagen==idImagen){
+                        listaImagenes.splice(i,1);
+                    }
+                }
+                verificarFilasColumnas();
+                console.log("yupi");
+            },
+            error: function (xhr, status, error) {
+                console.log("aiuda")
+            }
+        });
+    }
+    function clicAgregarImagen(){
+            document.getElementById("inputAgregarImagen").click();
+    }
+    function subirImagen(event){
+        const file = event.target.files[0];
+        if (file&&file.type==="image/png") {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const imagen=$("#inputAgregarImagen");
+                let formData=new FormData();
+                formData.append("imagen",imagen[0].files[0]);
+                formData.append("idJuego",idJuego);
+                $.ajax({
+                    url: '/subirFoto',
+                    type: 'POST',
+                    contentType: false,
+                    processData: false,
+                    data: formData,
+                    success: function (response) {
+                        const idImagen=response.content;
+                        const url=e.target.result;
+                        $("#contenedorImagenes").append('<div id="contenedorImagen'+idImagen+'" style="width: 33%;height: 300px">\n' +
+                            '            <div onclick="borrarImagen('+idImagen+')" style="z-index: 10000;position: relative;left: 95%;top: 7%">X</div>\n' +
+                            '            <img style="width: 100%;height: 100%;position: relative" src="/mostrarImagen?idImagen='+idImagen+'" alt="">\n' +
+                            '        </div>\n')
+                        listaImagenes.push({idImagen:idImagen,posicion1: null,posicion2: null});
+                        verificarFilasColumnas();
+                        console.log("yupi");
+                    },
+                    error: function (xhr, status, error) {
+                        console.log("aiuda")
+                    }
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function iniciarJuego(){
+        let distribucionFinalAux=[]
+        let html='<div class="row">\n' +
+            '        <div class="bloque"></div>\n' +
+            '    </div>'
+        const x=distribucionJuego.x;
+        const y=distribucionJuego.y;
+        for(let i=0;i<x;i++){
+            let distribucionFinalFila=[]
+            for(let j=0;j<y;j++){
+                let imagenElegida;
+                while(1){
+                    imagenElegida=listaImagenes[Math.floor(Math.random()*listaImagenes.length)];
+                    if(imagenElegida.posicion1==null){
+                        imagenElegida.posicion1={x:i,y:j};
+                        break;
+                    }else if(imagenElegida.posicion2==null){
+                        imagenElegida.posicion2={x:i,y:j};
+                        break;
+                    }
+                }
+                distribucionFinalFila.push(imagenElegida);
+            }
+            distribucionFinalAux.push(distribucionFinalFila);
+        }
+        distribucionFinal=distribucionFinalAux;
+        for(let i=0;i<distribucionFinal.length;i++){
+            html+='<div class="row">\n';
+            for(let j=0;j<distribucionFinal[0].length;j++){
+                html+='        <div class="bloque"><img src="/mostrarImagen?idImagen='+distribucionFinal[i][j].idImagen+'" alt=""></div>\n';
+            }
+            html+='</div>\n';
+        }
+        $("#contenedorBloques").html(html);
+    }
+
+    function verificarFilasColumnas(){
+        const botonIniciarJuego=$("#botonIniciarJuego");
+        botonIniciarJuego.css("display","none");
+        const totalImagenes=listaImagenes.length;
+        for(let i=Math.round(Math.sqrt(totalImagenes));i>=0;i--){
+            const filas=i;
+            const columnas=parseInt(totalImagenes/filas);
+            if(columnas-Math.round(columnas)<0.0001){
+                if(columnas%2==1){
+                    if(filas-columnas==1)
+                        botonIniciarJuego.css("display","");
+                        distribucionJuego={x:filas,y:columnas};
+                }
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
